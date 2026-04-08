@@ -301,14 +301,14 @@ bool loginUser(const string& userName, const string& password) {
 int main(int argc, char* argv[]) {
 
     if (argc < 3) {
-        cout << "Naudojimas: " << argv[0] << " <existingUser> <newUser>\n";
+        cout << "Using: " << argv[0] << " <existingUser> <newUser>\n";
         return 1;
     }
 
     string existingUser = argv[1];
     string newUser = argv[2];
     if(userExists(existingUser)){
-    cout << "=== egzistuojancio vartotojo slaptazodzio hash ===\n";
+    cout << "=== existing user password hash ===\n";
 
     int len = findHashLength(existingUser);
     if (len == -1) return 1;
@@ -316,19 +316,19 @@ int main(int argc, char* argv[]) {
     string hash = extractHash(existingUser, len);
     if (hash.empty()) return 1;
 
-    cout << "\n[+] " << existingUser << " slaptazodzio hash: " << hash << endl;
+    cout << "\n[+] " << existingUser << " password hash: " << hash << endl;
     }
-    else cout << "[-] Vartotojas " << existingUser << " neegzistuoja" << endl;
+    else cout << "[-] User " << existingUser << " does not exist" << endl;
     if(userExists(newUser) == false){
-    cout << "\n=== naujo vartotojo kurimas ===\n";
+    cout << "\n=== creating new user ===\n";
 
     if (!createUser(newUser, "Alexander", "Bob", "guessme")) {
-        cout << "[!] Tęsiama toliau be naujo vartotojo sukūrimo\n";
+        cout << "[!] Continuing without creating new user\n";
     }
     }
-    else cout << "[!] Vartotojas " << newUser << " jau egzistuoja" << endl;
+    else cout << "[!] User " << newUser << " already exists" << endl;
     cout << endl;
-    cout << "\n=== naujo vartotojo slaptazodzio hash ===\n";
+    cout << "\n=== new user password hash ===\n";
 
     int newLen = findHashLength(newUser);
     if (newLen == -1) return 1;
@@ -336,9 +336,9 @@ int main(int argc, char* argv[]) {
     string newHash = extractHash(newUser, newLen);
     if (newHash.empty()) return 1;
 
-    cout << "\n[+] " << newUser << " slaptazodzio hash: " << newHash << endl;
+    cout << "\n[+] " << newUser << " password hash: " << newHash << endl;
     cout << endl;
-    cout << "\n=== Eksperimentas: prisijungti su nauju vartotoju ===\n";
+    cout << "\n=== Experiment: logging in with the new user ===\n";
     loginUser(newUser, "guessme");
     return 0;
 }
