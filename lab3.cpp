@@ -338,7 +338,7 @@ int main(int argc, char* argv[]) {
 
     cout << "\n[+] " << newUser << " slaptazodzio hash: " << newHash << endl;
     cout << endl;
-    cout << "\n=== login test ===\n";
+    cout << "\n=== Eksperimentas: prisijungti su nauju vartotoju ===\n";
     loginUser(newUser, "guessme");
     return 0;
 }
