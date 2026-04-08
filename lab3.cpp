@@ -264,6 +264,40 @@ bool userExists(const string& user) {
 
     return bodyLower.find("user exists") != string::npos;
 }
+bool loginUser(const string& userName, const string& password) {
+
+    string json = "{"
+        "\"userName\":\"" + userName + "\","
+        "\"password\":\"" + password + "\""
+    "}";
+
+    string request =
+        "POST /login HTTP/1.1\r\n"
+        "Host: localhost:8080\r\n"
+        "Content-Type: application/json\r\n"
+        "Accept: application/json\r\n"
+        "Content-Length: " + to_string(json.size()) + "\r\n"
+        "Connection: close\r\n"
+        "\r\n" +
+        json;
+
+    string response = sendRequest(request);
+    if (response.empty()) {
+        cout << "[-] Login failed: no HTTP response\n";
+        return false;
+    }
+
+    int statusCode = getHttpStatusCode(response);
+    string body = getHttpBody(response);
+
+    if (statusCode >= 200 && statusCode < 300) {
+        cout << "[+] Login successful (HTTP " << statusCode << ")\n";
+        return true;
+    }
+
+    cout << "[-] Login failed (HTTP " << statusCode << ")\n";
+    return false;
+}
 int main(int argc, char* argv[]) {
 
     if (argc < 3) {
@@ -303,6 +337,8 @@ int main(int argc, char* argv[]) {
     if (newHash.empty()) return 1;
 
     cout << "\n[+] " << newUser << " slaptazodzio hash: " << newHash << endl;
-
+    cout << endl;
+    cout << "\n=== login test ===\n";
+    loginUser(newUser, "guessme");
     return 0;
 }
